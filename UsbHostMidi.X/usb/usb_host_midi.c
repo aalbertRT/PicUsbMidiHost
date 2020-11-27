@@ -210,10 +210,6 @@ bool USBHostMIDIInit ( uint8_t address, uint32_t flags, uint8_t clientDriverID )
             device->deviceAddress = address;
             device->clientDriverID = clientDriverID;
             device->numEndpoints = bNumEndpoints;
-            if (device->numEndpoints==2) {
-                USB_HOST_APP_EVENT_HANDLER(address, EVENT_MIDI_DEBUG_LED_ON, device, sizeof(MIDI_DEVICE) );
-            }
-
 
             // Allocate enough memory for each endpoint
             if ((device->endpoints = (MIDI_ENDPOINT_DATA*)malloc( sizeof(MIDI_ENDPOINT_DATA) * bNumEndpoints)) == NULL)
@@ -349,6 +345,7 @@ bool USBHostMIDIEventHandler ( uint8_t address, USB_EVENT event, void *data, uin
     }
     if(i == USB_MAX_MIDI_DEVICES)
     {
+        
         return false;
     }
 
@@ -370,6 +367,7 @@ bool USBHostMIDIEventHandler ( uint8_t address, USB_EVENT event, void *data, uin
 
         #ifdef USB_ENABLE_TRANSFER_EVENT
         case EVENT_TRANSFER:
+
             if ( (data != NULL) && (size == sizeof(HOST_TRANSFER_DATA)) )
             {
                 unsigned char currentEndpoint;

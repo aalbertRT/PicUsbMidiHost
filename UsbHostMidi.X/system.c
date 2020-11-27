@@ -61,6 +61,17 @@ please contact mla_licensing@microchip.com
 #pragma config GCP = OFF                // General Segment Code Protect (Code protection is disabled)
 #pragma config JTAGEN = OFF             // JTAG Port Enable (JTAG port is disabled)
 
+void pic24fj64gb002_hack() {
+     //On the PIC24FJ64GB004 Family of USB microcontrollers, the PLL will not power up and be enabled
+    //by default, even if a PLL enabled oscillator configuration is selected (such as HS+PLL).
+    //This allows the device to power up at a lower initial operating frequency, which can be
+    //advantageous when powered from a source which is not gauranteed to be adequate for 32MHz
+    //operation.  On these devices, user firmware needs to manually set the CLKDIV<PLLEN> bit to
+    //power up the PLL.
+    unsigned int pll_startup_counter = 600;
+    CLKDIVbits.PLLEN = 1;
+    while(pll_startup_counter--);
+}
  
 /*********************************************************************
 * Function: void SYSTEM_Initialize( SYSTEM_STATE state )
@@ -76,42 +87,18 @@ please contact mla_licensing@microchip.com
 ********************************************************************/
 void SYSTEM_Initialize( SYSTEM_STATE state )
 {
-    //On the PIC24FJ64GB004 Family of USB microcontrollers, the PLL will not power up and be enabled
-    //by default, even if a PLL enabled oscillator configuration is selected (such as HS+PLL).
-    //This allows the device to power up at a lower initial operating frequency, which can be
-    //advantageous when powered from a source which is not gauranteed to be adequate for 32MHz
-    //operation.  On these devices, user firmware needs to manually set the CLKDIV<PLLEN> bit to
-    //power up the PLL.
-    
-    {
-        unsigned int pll_startup_counter = 600;
-        CLKDIVbits.PLLEN = 1;
-        while(pll_startup_counter--);
-    }
-    
-
     switch(state)
     {
         case SYSTEM_STATE_USB_HOST:
+            pic24fj64gb002_hack();
             LED_Enable(LED_USB_HOST_INITIALIZED);
             LED_Enable(LED_USB_HOST_MIDI_KEYBOARD_DEVICE_READY);
-            LED_Enable(LED_USB_HOST_MIDI_KEYBOARD_PAD_PRESSSED);
+            LED_Enable(LED_USB_HOST_MIDI_KEYBOARD_PAD_PRESSED);
             LED_Enable(LED_USB_HOST_MIDI_KEYBOARD_DEVICE_ATTACHED);
-            LED_On(LED_USB_HOST_INITIALIZED);
-            __delay_ms(500);
-            LED_Off(LED_USB_HOST_INITIALIZED);
-            __delay_ms(500);
-            LED_On(LED_USB_HOST_INITIALIZED);
-            __delay_ms(500);
-            LED_Off(LED_USB_HOST_INITIALIZED);
-            __delay_ms(500);
             LED_On(LED_USB_HOST_INITIALIZED);
             break;
             
         case SYSTEM_STATE_USB_HOST_MIDI_KEYBOARD:
-            LED_On(LED_USB_HOST_MIDI_KEYBOARD_DEVICE_READY);
-            __delay_ms(1000);
-            LED_Off(LED_USB_HOST_MIDI_KEYBOARD_DEVICE_READY);
             TIMER_SetConfiguration(TIMER_CONFIGURATION_1MS);
             break;
     }

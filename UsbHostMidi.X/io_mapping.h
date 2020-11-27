@@ -20,5 +20,5 @@ please contact mla_licensing@microchip.com
 
 #define LED_USB_HOST_INITIALIZED                      LED_D1
 #define LED_USB_HOST_MIDI_KEYBOARD_DEVICE_READY       LED_D2
-#define LED_USB_HOST_MIDI_KEYBOARD_PAD_PRESSSED       LED_D3
+#define LED_USB_HOST_MIDI_KEYBOARD_PAD_PRESSED        LED_D3
 #define LED_USB_HOST_MIDI_KEYBOARD_DEVICE_ATTACHED    LED_D4
