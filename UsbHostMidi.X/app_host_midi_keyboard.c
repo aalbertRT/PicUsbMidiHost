@@ -91,6 +91,7 @@ static MIDI_KEYBOARD midi_keyboard;
 static void App_ProcessInputReport(void);
 static void clearBuffer(void);
 static unsigned int bufferSize(void);
+static void handleMIDIPacket(USB_AUDIO_MIDI_PACKET *);
 
 // *****************************************************************************
 // *****************************************************************************
@@ -180,6 +181,7 @@ void APP_HostMIDIKeyboardTasks()
             break;
             
         case DEVICE_CONNECTED:
+            midi_keyboard.state = GET_INPUT_REPORT;
             break;
 
         case GET_INPUT_REPORT:
@@ -187,11 +189,7 @@ void APP_HostMIDIKeyboardTasks()
             if (USBHostMIDIRead(midi_keyboard.device,
                                 midi_keyboard.endpointBuffer.endpointIdx,
                                 midi_keyboard.endpointBuffer.pBufWriteLocation,
-                                bufferSize()) != USB_SUCCESS)
-            {
-                // Host may be busy/error -- keep trying
-            }
-            else
+                                bufferSize())==USB_SUCCESS)
             {
                 // USB_SUCCESS received, waiting for TRANSFER_DONE
                 
@@ -250,17 +248,37 @@ void APP_HostMIDIKeyboardTasks()
 ***************************************************************************/
 static void App_ProcessInputReport(void)
 {    
-    // Process input report received from device */
-//    
-//    if (midi_keyboard.buffer->CIN==MIDI_CIN_NOTE_OFF)
-//    {
-//        LED_On(LED_USB_HOST_MIDI_KEYBOARD_DEVICE_READY);
-//    }
-//    else
-//    {
-//        LED_Off(LED_USB_HOST_MIDI_KEYBOARD_DEVICE_READY);
-//
-//    }
+    // Verify the buffer has some packets to be read
+    if (midi_keyboard.endpointBuffer.pBufReadLocation != midi_keyboard.endpointBuffer.pBufWriteLocation)
+    {
+        //uint8_t* midiPacket;
+        // Loop over number of MIDI packets in the buffer endpoint
+        for (uint8_t midiPacketIdx = 0; midiPacketIdx < midi_keyboard.endpointBuffer.MIDIPacketsNumber; midiPacketIdx++) 
+        {
+            // Check if the MIDI packet is filled; move the read pointer to the next midi packet memory location
+            if (midi_keyboard.endpointBuffer.pBufReadLocation->Val == 0ul)
+            {
+                // If there's nothing in this MIDI packet, then skip the rest of the USB packet
+                midi_keyboard.endpointBuffer.pBufReadLocation += midi_keyboard.endpointBuffer.MIDIPacketsNumber - midiPacketIdx;
+            }
+            else
+            {
+                // Handle MIDI Packet
+                handleMIDIPacket(midi_keyboard.endpointBuffer.pBufReadLocation);
+                
+                // Move the read pointer to the next midi packet memory location
+                midi_keyboard.endpointBuffer.pBufReadLocation++;
+            }
+            
+            // Check if the end of the USB packets array has been reached
+            // If so, get back to the beginning of the USB packets array
+            if (midi_keyboard.endpointBuffer.pBufReadLocation - midi_keyboard.endpointBuffer.bufferStart
+            >= midi_keyboard.endpointBuffer.MIDIPacketsNumber * MIDI_USB_BUFFER_SIZE) 
+            {
+                midi_keyboard.endpointBuffer.pBufReadLocation = midi_keyboard.endpointBuffer.bufferStart;
+            }
+        }
+    }
 }
 
 
@@ -268,7 +286,8 @@ void initializeEndpointBuffer(uint8_t endpointIdx) {
     // Set the endpointIdx of the buffer as the input buffer that has been found
     midi_keyboard.endpointBuffer.endpointIdx = endpointIdx;
     
-    // Number of MIDI packets in the endpoint is the size of the endpoint divided by the size of a MIDI packet (should be 64)
+    // Number of MIDI packets in the endpoint is the size of the endpoint divided by the size of a MIDI packet
+    // It should be 16: (endpoitn size 64 bytes) / (midi packet size 4 bytes)
     midi_keyboard.endpointBuffer.MIDIPacketsNumber = 
             USBHostMIDISizeOfEndpoint(midi_keyboard.device, endpointIdx) / sizeof(USB_AUDIO_MIDI_PACKET);
 
@@ -276,8 +295,9 @@ void initializeEndpointBuffer(uint8_t endpointIdx) {
     midi_keyboard.endpointBuffer.transferState = READY;
     
     // Allocate enough memory to have several midi packets in memory
+    // It should allocate 16 bytes * 4 = 64 bytes (512 bits)
     midi_keyboard.endpointBuffer.bufferStart = 
-            malloc( sizeof(USB_AUDIO_MIDI_PACKET) * midi_keyboard.endpointBuffer.MIDIPacketsNumber * USB_MIDI_PACKET_LENGTH );
+            malloc( sizeof(USB_AUDIO_MIDI_PACKET) * midi_keyboard.endpointBuffer.MIDIPacketsNumber * MIDI_USB_BUFFER_SIZE );
     
     // Set the read and write buffer pointer at the beginning of the allocated memory just above
     midi_keyboard.endpointBuffer.pBufReadLocation = midi_keyboard.endpointBuffer.bufferStart;
@@ -296,17 +316,16 @@ void onDeviceAttached(void *data) {
     midi_keyboard.device = data;
 
     // Find the INPUT endpoint and initialize it
-    for(uint8_t endpointIdx = 0; endpointIdx< USBHostMIDINumberOfEndpoints(midi_keyboard.device); endpointIdx++ )
+    for(uint8_t endpointIdx = 0; endpointIdx < USBHostMIDINumberOfEndpoints(midi_keyboard.device); endpointIdx++)
     {
-        if (USBHostMIDIEndpointDirection(midi_keyboard.device, endpointIdx) == IN);
+        if (USBHostMIDIEndpointDirection(midi_keyboard.device, endpointIdx) == IN)
         {
             initializeEndpointBuffer(endpointIdx);
+            // Visual indicator to tell the device has been attached and initialized
+            LED_On(LED_USB_HOST_MIDI_KEYBOARD_DEVICE_ATTACHED);
             break;
         }
-    }    
-    
-    // Visual indicator to tell the device has been attached and initialized
-    LED_On(LED_USB_HOST_MIDI_KEYBOARD_DEVICE_ATTACHED);
+    }        
 }
 
 void onDeviceDetached() {
@@ -317,6 +336,35 @@ void onDeviceDetached() {
     free(midi_keyboard.endpointBuffer.bufferStart);    
 }
 
+uint8_t note = 1;
+bool LEDON = false;
+
+
+void handleMIDIPacket(USB_AUDIO_MIDI_PACKET *midiPacket) {
+    if (note != midiPacket->CIN)
+    {
+        note = midiPacket->CIN;
+        if (LEDON)
+        {
+            LED_Off(LED_USB_HOST_MIDI_KEYBOARD_PAD_PRESSED);
+            LEDON = false;
+        }
+        else
+        {
+            LED_On(LED_USB_HOST_MIDI_KEYBOARD_PAD_PRESSED);
+            LEDON = true;
+        }
+    }
+//    if ((midiPacket->CIN == MIDI_CIN_NOTE_OFF) || 
+//            (midiPacket->CIN == MIDI_CIN_NOTE_ON && midiPacket->MIDI_1 == 0))
+//    {
+//        LED_Off(LED_USB_HOST_MIDI_KEYBOARD_PAD_PRESSED);
+//    }
+//    else if (midiPacket->CIN == MIDI_CIN_NOTE_ON)
+//    {
+//        LED_On(LED_USB_HOST_MIDI_KEYBOARD_PAD_PRESSED);
+//    }
+}
 
 /****************************************************************************
   Function:
@@ -367,21 +415,23 @@ bool USB_HOST_APP_EVENT_HANDLER ( uint8_t address, USB_EVENT event, void *data, 
         case EVENT_CLIENT_INIT_ERROR:
         case EVENT_OUT_OF_MEMORY:
         case EVENT_UNSPECIFIED_ERROR:
+        case EVENT_TRANSFER:
             return true;
             break;
 
-        /* MIDI Class Specific Events ******************************************/
+        /* MIDI Class Specific Events ******************************************/        
         case EVENT_MIDI_ATTACH:
             onDeviceAttached(data);
-            break;
+            return true;
             
         case EVENT_MIDI_DETACH:
             onDeviceDetached();
+            return true;
+        
+        case EVENT_MIDI_DEBUG_LED_ON:
+            LED_On(LED_USB_HOST_MIDI_KEYBOARD_PAD_PRESSED);
             break;
-            
-        case EVENT_MIDI_TRANSFER_DONE:
-            break;
-
+                
         default:
             break;
     }
