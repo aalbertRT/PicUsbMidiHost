@@ -41,6 +41,7 @@ please contact mla_licensing@microchip.com
 #define USB_INSERT_TIME (250+1)
 #define USB_HOST_APP_EVENT_HANDLER USB_ApplicationEventHandler
 #define USB_ENABLE_TRANSFER_EVENT
+#define USB_SUPPORT_BULK_TRANSFERS
 
 // Helpful Macros
 
