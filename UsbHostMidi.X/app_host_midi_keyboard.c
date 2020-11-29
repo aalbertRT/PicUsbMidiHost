@@ -175,8 +175,6 @@ void APP_HostMIDIKeyboardTasks()
                 
                 // Change state
                 midi_keyboard.state = DEVICE_CONNECTED;
-                TIMER_RequestTick(&APP_HostTimerHandler, 10);
-
             }
             break;
             
@@ -207,8 +205,9 @@ void APP_HostMIDIKeyboardTasks()
                 
                 // If the end of the allocated memory is reached, get back to the beginning of the memory
                 if(midi_keyboard.endpointBuffer.pBufWriteLocation - midi_keyboard.endpointBuffer.bufferStart >= bufferSize())
+                {
                     midi_keyboard.endpointBuffer.pBufWriteLocation = midi_keyboard.endpointBuffer.bufferStart;
-                
+                }
                 // Change state
                 midi_keyboard.state = DEVICE_CONNECTED;
                 midi_keyboard.endpointBuffer.transferState = READY;
@@ -251,7 +250,6 @@ static void App_ProcessInputReport(void)
     // Verify the buffer has some packets to be read
     if (midi_keyboard.endpointBuffer.pBufReadLocation != midi_keyboard.endpointBuffer.pBufWriteLocation)
     {
-        //uint8_t* midiPacket;
         // Loop over number of MIDI packets in the buffer endpoint
         for (uint8_t midiPacketIdx = 0; midiPacketIdx < midi_keyboard.endpointBuffer.MIDIPacketsNumber; midiPacketIdx++) 
         {
@@ -260,6 +258,7 @@ static void App_ProcessInputReport(void)
             {
                 // If there's nothing in this MIDI packet, then skip the rest of the USB packet
                 midi_keyboard.endpointBuffer.pBufReadLocation += midi_keyboard.endpointBuffer.MIDIPacketsNumber - midiPacketIdx;
+                break;
             }
             else
             {
@@ -287,7 +286,7 @@ void initializeEndpointBuffer(uint8_t endpointIdx) {
     midi_keyboard.endpointBuffer.endpointIdx = endpointIdx;
     
     // Number of MIDI packets in the endpoint is the size of the endpoint divided by the size of a MIDI packet
-    // It should be 16: (endpoitn size 64 bytes) / (midi packet size 4 bytes)
+    // It should be 16: (endpoint size 64 bytes) / (midi packet size 4 bytes)
     midi_keyboard.endpointBuffer.MIDIPacketsNumber = 
             USBHostMIDISizeOfEndpoint(midi_keyboard.device, endpointIdx) / sizeof(USB_AUDIO_MIDI_PACKET);
 
@@ -341,29 +340,15 @@ bool LEDON = false;
 
 
 void handleMIDIPacket(USB_AUDIO_MIDI_PACKET *midiPacket) {
-    if (note != midiPacket->CIN)
+    if ((midiPacket->CIN == MIDI_CIN_NOTE_OFF) || 
+            (midiPacket->CIN == MIDI_CIN_NOTE_ON && midiPacket->MIDI_1 == 0))
     {
-        note = midiPacket->CIN;
-        if (LEDON)
-        {
-            LED_Off(LED_USB_HOST_MIDI_KEYBOARD_PAD_PRESSED);
-            LEDON = false;
-        }
-        else
-        {
-            LED_On(LED_USB_HOST_MIDI_KEYBOARD_PAD_PRESSED);
-            LEDON = true;
-        }
+        LED_Off(LED_USB_HOST_MIDI_KEYBOARD_PAD_PRESSED);
     }
-//    if ((midiPacket->CIN == MIDI_CIN_NOTE_OFF) || 
-//            (midiPacket->CIN == MIDI_CIN_NOTE_ON && midiPacket->MIDI_1 == 0))
-//    {
-//        LED_Off(LED_USB_HOST_MIDI_KEYBOARD_PAD_PRESSED);
-//    }
-//    else if (midiPacket->CIN == MIDI_CIN_NOTE_ON)
-//    {
-//        LED_On(LED_USB_HOST_MIDI_KEYBOARD_PAD_PRESSED);
-//    }
+    else if (midiPacket->CIN == MIDI_CIN_NOTE_ON)
+    {
+        LED_On(LED_USB_HOST_MIDI_KEYBOARD_PAD_PRESSED);
+    }
 }
 
 /****************************************************************************
