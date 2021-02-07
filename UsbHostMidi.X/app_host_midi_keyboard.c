@@ -268,14 +268,13 @@ static void App_ProcessInputReport(void)
                 // Move the read pointer to the next midi packet memory location
                 midi_keyboard.endpointBuffer.pBufReadLocation++;
             }
-            
-            // Check if the end of the USB packets array has been reached
-            // If so, get back to the beginning of the USB packets array
-            if (midi_keyboard.endpointBuffer.pBufReadLocation - midi_keyboard.endpointBuffer.bufferStart
-            >= midi_keyboard.endpointBuffer.MIDIPacketsNumber * MIDI_USB_BUFFER_SIZE) 
-            {
-                midi_keyboard.endpointBuffer.pBufReadLocation = midi_keyboard.endpointBuffer.bufferStart;
-            }
+        }
+        // Check if the end of the USB packets array has been reached
+        // If so, get back to the beginning of the USB packets array
+        if (midi_keyboard.endpointBuffer.pBufReadLocation - midi_keyboard.endpointBuffer.bufferStart
+        >= midi_keyboard.endpointBuffer.MIDIPacketsNumber * MIDI_USB_BUFFER_SIZE)
+        {
+            midi_keyboard.endpointBuffer.pBufReadLocation = midi_keyboard.endpointBuffer.bufferStart;
         }
     }
 }
@@ -335,10 +334,7 @@ void onDeviceDetached() {
     free(midi_keyboard.endpointBuffer.bufferStart);    
 }
 
-uint8_t note = 1;
-bool LEDON = false;
-
-
+/* That's where the PIC does what you want when it receives a midi packet. */
 void handleMIDIPacket(USB_AUDIO_MIDI_PACKET *midiPacket) {
     if ((midiPacket->CIN == MIDI_CIN_NOTE_OFF) || 
             (midiPacket->CIN == MIDI_CIN_NOTE_ON && midiPacket->MIDI_1 == 0))
